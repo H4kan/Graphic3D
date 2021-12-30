@@ -82,6 +82,11 @@ namespace MysteryProject
             return this.CreateLine(first.X, first.Y, sec.X, sec.Y);
         }
 
+        public void EraseLine(Point first, Point sec)
+        {
+            this.EraseLine(first.X, first.Y, sec.X, sec.Y);
+        }
+
         private Line CreateLine(int x1, int y1, int x2, int y2)
         {
             var line = new Line();
@@ -108,12 +113,8 @@ namespace MysteryProject
             return line;
         }
 
-        public void EraseLine(Line line)
+        private void EraseLine(int x1, int y1, int x2, int y2)
         {
-            var x1 = line.Start.X;
-            var x2 = line.End.X;
-            var y1 = line.Start.Y;
-            var y2 = line.End.Y;
 
             if (Math.Abs(y2 - y1) < Math.Abs(x2 - x1))
             {

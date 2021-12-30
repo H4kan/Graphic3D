@@ -23,13 +23,19 @@ namespace MysteryProject
             Width = width;
             Height = height;
             Bits = new Int32[width * height];
+            for (int i = 0; i < width * height; i++)
+                Bits[i] = Color.Black.ToArgb();
             BitsHandle = GCHandle.Alloc(Bits, GCHandleType.Pinned);
             Bitmap = new Bitmap(width, height, width * 4, PixelFormat.Format32bppPArgb, BitsHandle.AddrOfPinnedObject());
+
         }
 
         public void SetPixel(int x, int y, Color colour)
         {
-            int index = x + (y * Width);
+            int transformedX = y;
+            int transformedY = this.Bitmap.Height - 1 - x;
+
+            int index = transformedX + (transformedY * Width);
             int col = colour.ToArgb();
 
             Bits[index] = col;

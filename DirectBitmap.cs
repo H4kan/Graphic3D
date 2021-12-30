@@ -43,7 +43,10 @@ namespace MysteryProject
 
         public Color GetPixel(int x, int y)
         {
-            int index = x + (y * Width);
+            int transformedX = y;
+            int transformedY = this.Bitmap.Height - 1 - x;
+
+            int index = transformedX + (transformedY * Width);
             int col = Bits[index];
             Color result = Color.FromArgb(col);
 

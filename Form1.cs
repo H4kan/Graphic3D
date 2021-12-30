@@ -26,6 +26,8 @@ namespace MysteryProject
 
         public DirectBitmap Bmp { get; set; }
 
+        public DirectBitmap TxtBmp { get; set; }
+
         public double alpha { get; set; }
 
         public List<Matrix<double>> vectors { get; set; }
@@ -36,11 +38,15 @@ namespace MysteryProject
 
         public List<Vector3> originalVertices = new List<Vector3>();
 
-        public List<(int, int)> vertices = new List<(int, int)>();
+        public List<Vector3> vertices = new List<Vector3>();
 
         public List<(int, int, int)> triangles = new List<(int, int, int)>();
 
-        public List<Polygon> polygons { get; set; }
+        public List<Polygon> polygons = new List<Polygon>();
+
+        public List<Vector2> textureVertices = new List<Vector2>();
+
+        public List<(int, int, int)> textureIndexes = new List<(int, int, int)>();
 
         public Form1()
         {
@@ -52,11 +58,20 @@ namespace MysteryProject
             this.pictureBox.Height = 900;
             this.Bmp = new DirectBitmap(this.pictureBox.Width, this.pictureBox.Height);
 
+            using (var txtBmpHandler = Image.FromFile("../../../african_head_diffuse.jpg"))
+            {
+                this.TxtBmp = new DirectBitmap(txtBmpHandler.Width, txtBmpHandler.Height);
+                using (var graphics = Graphics.FromImage(this.TxtBmp.Bitmap))
+                {
+                    graphics.DrawImage(txtBmpHandler, 0, 0);
+                }
+            }
+
             this.pictureBox.Image = this.Bmp.Bitmap;
 
             this.BresenhamLine = new BresenhamLine(this.Bmp);
             this.LineService = new LineService(this.Bmp, this.pictureBox, this);
-            this.FillingService = new FillingService(this.LineService, this);
+            this.FillingService = new FillingService(this.LineService, this.Bmp);
 
             string[] data = File.ReadAllLines("../../../african_head.obj");
 
@@ -64,36 +79,45 @@ namespace MysteryProject
             int pos = 450;
 
 
-            int i = 0;
-            while (data[i][0] == 'v' && data[i][1] == ' ')
+            for (int i = 0; i < data.Length; i++)
             {
+                if (data[i].Length < 2) continue;
                 var values = data[i].Split(" ");
-                originalVertices.Add(new Vector3(float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat),
-                    float.Parse(values[1], CultureInfo.InvariantCulture.NumberFormat),
-                    float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat)));
-                vertices.Add((Convert.ToInt32(Math.Round(pos + originalVertices[i].X * (size / 2))), Convert.ToInt32(Math.Round(pos + originalVertices[i].Y * (size / 2)))));
-                i++;
-            }
-            while (data[i].Length < 1 || data[i][0] != 'f')
-                i++;
-            while (i < data.Length && data[i][0] == 'f')
-            {
-                var values = data[i].Split(" ");
-                triangles.Add((Int32.Parse((values[1].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1));
-                i++;
+                if (data[i][0] == 'v' && data[i][1] == ' ')
+                {
+                    originalVertices.Add(new Vector3(float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat),
+                        float.Parse(values[1], CultureInfo.InvariantCulture.NumberFormat),
+                        float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat)));
+                    vertices.Add(new Vector3(Convert.ToInt32(Math.Round(pos + originalVertices[i].X * (size / 2))), Convert.ToInt32(Math.Round(pos + originalVertices[i].Y * (size / 2))), originalVertices[i].Z));
+                }
+                if (data[i][0] == 'f')
+                {
+                    triangles.Add((Int32.Parse((values[1].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1));
+                    textureIndexes.Add((Int32.Parse((values[1].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1));
+                }
+                if (data[i][0] == 'v' && data[i][1] == 't')
+                {
+                    textureVertices.Add(new Vector2(float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat), float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat)));
+                }
             }
 
+            float[,] zMax = new float[this.Bmp.Width, this.Bmp.Height];
             for (int j = 0; j < triangles.Count; j++)
             {
-                var pt1 = new Point(vertices[triangles[j].Item1].Item1, vertices[triangles[j].Item1].Item2);
-                var pt2 = new Point(vertices[triangles[j].Item2].Item1, vertices[triangles[j].Item2].Item2);
-                var pt3 = new Point(vertices[triangles[j].Item3].Item1, vertices[triangles[j].Item3].Item2);
+                var pt1 = vertices[triangles[j].Item1];
+                var pt2 = vertices[triangles[j].Item2];
+                var pt3 = vertices[triangles[j].Item3];
 
                 var poly = new Polygon();
+                this.polygons.Add(poly);
 
                 poly.Edges.Add(new Line(pt1, pt2));
                 poly.Edges.Add(new Line(pt2, pt3));
                 poly.Edges.Add(new Line(pt3, pt1));
+
+                poly.Points.Add(pt1);
+                poly.Points.Add(pt2);
+                poly.Points.Add(pt3);
 
                 Vector3 v1 = new Vector3(originalVertices[triangles[j].Item2].X - originalVertices[triangles[j].Item1].X, 
                     originalVertices[triangles[j].Item2].Y - originalVertices[triangles[j].Item1].Y,
@@ -113,7 +137,15 @@ namespace MysteryProject
                 var rnd = new Random();
                 if (intensity > 0)
                 {
-                    this.FillingService.RunFilling(this.FillingService.InitTables(poly), Color.FromArgb(Convert.ToInt32(Math.Round(intensity * 255)), Convert.ToInt32(Math.Round(intensity * 255)), Convert.ToInt32(Math.Round(intensity * 255))));
+                    var color = Color.FromArgb(Convert.ToInt32(Math.Round(intensity * 255)), Convert.ToInt32(Math.Round(intensity * 255)), Convert.ToInt32(Math.Round(intensity * 255)));
+                    //this.FillingService.RunFilling(this.FillingService.InitTables(poly), Color.FromArgb(Convert.ToInt32(Math.Round(intensity * 255)), Convert.ToInt32(Math.Round(intensity * 255)), Convert.ToInt32(Math.Round(intensity * 255))));
+                    var colorResolver = new ColorResolver(polygons[j], this.TxtBmp,
+                        (
+                        textureVertices[textureIndexes[j].Item1],
+                        textureVertices[textureIndexes[j].Item2],
+                        textureVertices[textureIndexes[j].Item3]
+                        ), intensity);
+                    this.FillingService.RunFilling(poly.Points, zMax, colorResolver);
                 }
                 
             }
@@ -122,6 +154,7 @@ namespace MysteryProject
 
             //timer = new System.Threading.Timer(this.RefreshCube, null, 0, 100);
         }
+
 
         public Matrix<double> PMatrix(int w, int h)
         {

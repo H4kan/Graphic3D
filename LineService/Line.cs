@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Numerics;
 using System.Text;
 
 namespace MysteryProject
@@ -14,10 +15,10 @@ namespace MysteryProject
         public Line()
         { }
 
-        public Line(Point start, Point end)
+        public Line(Vector3 start, Vector3 end)
         {
-            Start = start;
-            End = end;
+            Start = new Point(Convert.ToInt32(start.X), Convert.ToInt32(start.Y));
+            End = new Point(Convert.ToInt32(end.X), Convert.ToInt32(end.Y));
         }
 
         public Point EvaluateMidPoint()

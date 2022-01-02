@@ -11,7 +11,7 @@ namespace MysteryProject
     public class DirectBitmap : IDisposable, ICloneable
     {
         public Bitmap Bitmap { get; private set; }
-        public Int32[] Bits { get; private set; }
+        public Int32[] Bits { get; set; }
         public bool Disposed { get; private set; }
         public int Height { get; private set; }
         public int Width { get; private set; }

@@ -8,30 +8,39 @@ namespace MysteryProject
 {
     public class ColorResolver
     {
-
-        Polygon triangle { get; set; }
         (Vector2, Vector2, Vector2) colorsInVertices { get; set; }
-        float intensity { get; set; }
 
         DirectBitmap txtBmp { get; set; }
+
+        ShadingService ShadingService { get; set; }
         
-        public ColorResolver(Polygon triangle, DirectBitmap txtBmp, (Vector2, Vector2, Vector2) colorsInVecrtices, float intensity)
+        public ColorResolver(Polygon triangle, DirectBitmap txtBmp, (Vector2, Vector2, Vector2) colorsInVecrtices, ShadingService shadingService)
         {
-            this.triangle = triangle;
             this.colorsInVertices = colorsInVecrtices;
-            this.intensity = intensity;
             this.txtBmp = txtBmp;
+            this.ShadingService = shadingService;
         }
 
-        public Color ResolveColor(Vector2 pointInTriangle)
+        public Color ResolveColor(Vector3 weights, Vector3 point)
         {
-            var weights = Helpers.GetBaycentricCoords(triangle.Points, pointInTriangle);
 
             var coords = weights.X * colorsInVertices.Item1 + weights.Y * colorsInVertices.Item2 + weights.Z * colorsInVertices.Item3;
 
-            var color = this.txtBmp.GetPixel(Convert.ToInt32(Math.Round(coords.X * this.txtBmp.Width)), Convert.ToInt32(Math.Round(coords.Y * this.txtBmp.Height)));
+            var color = this.txtBmp.GetPixel(Math.Max(0, Math.Min(Convert.ToInt32(coords.X * this.txtBmp.Width), this.txtBmp.Height - 1)), Math.Max(0, Math.Min(Convert.ToInt32(coords.Y * this.txtBmp.Height), this.txtBmp.Width - 1)));
 
-            return Color.FromArgb(Convert.ToInt32(Math.Round(intensity * color.R)), Convert.ToInt32(Math.Round(intensity * color.G)), Convert.ToInt32(Math.Round(intensity * color.B)));
+            var intensity = Math.Min(1, Math.Max(0, this.ShadingService.GetShading(weights, point, out float spec)));
+
+            if (spec > 0)
+            {
+                var r = Convert.ToInt32(Math.Min(5 + color.R * (intensity + 1.3 * spec), 255));
+                var g = Convert.ToInt32(Math.Min(5 + color.G * (intensity + 1.3 * spec), 255));
+                var b = Convert.ToInt32(Math.Min(5 + color.B * (intensity + 1.3 * spec), 255));
+
+
+                return Color.FromArgb(r, g, b);
+            }
+
+            return Color.FromArgb(Math.Min(255, Convert.ToInt32(intensity * color.R)), Math.Min(255, Convert.ToInt32(intensity * color.G)), Math.Min(255, Convert.ToInt32(intensity * color.B)));
         }
 
     }

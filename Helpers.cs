@@ -21,5 +21,37 @@ namespace MysteryProject
 
             return new Vector3(1 - (u.X + u.Y) / u.Z, u.Y / u.Z, u.X / u.Z);
         }
+
+        public static Vector3 Vector4ToVector3(Vector4 v)
+        {
+            return new Vector3(
+                v.X / v.W,
+                v.Y / v.W,
+                v.Z / v.W
+                );
+        }
+
+        public static Vector4 Vector3ToVector4(Vector3 v)
+        {
+            return new Vector4(
+                v.X, v.Y, v.Z, 1
+                );
+        }
+
+        public static List<(int, int, int)> findNeighbours(List<(int, int, int)> triangles, (int, int, int) triangle)
+        {
+            var listVertices = new List<int>();
+            listVertices.Add(triangle.Item1);
+            listVertices.Add(triangle.Item2);
+            listVertices.Add(triangle.Item3);
+            var list = triangles.FindAll(t => (listVertices.Contains(t.Item1) && listVertices.Contains(t.Item2))
+            || (listVertices.Contains(t.Item2) && listVertices.Contains(t.Item3)) ||
+            (listVertices.Contains(t.Item1) && listVertices.Contains(t.Item3)));
+
+            list = list.FindAll(t => t != triangle);
+
+            return list;
+        }
+
     }
 }

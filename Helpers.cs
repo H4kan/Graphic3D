@@ -38,20 +38,5 @@ namespace MysteryProject
                 );
         }
 
-        public static List<(int, int, int)> findNeighbours(List<(int, int, int)> triangles, (int, int, int) triangle)
-        {
-            var listVertices = new List<int>();
-            listVertices.Add(triangle.Item1);
-            listVertices.Add(triangle.Item2);
-            listVertices.Add(triangle.Item3);
-            var list = triangles.FindAll(t => (listVertices.Contains(t.Item1) && listVertices.Contains(t.Item2))
-            || (listVertices.Contains(t.Item2) && listVertices.Contains(t.Item3)) ||
-            (listVertices.Contains(t.Item1) && listVertices.Contains(t.Item3)));
-
-            list = list.FindAll(t => t != triangle);
-
-            return list;
-        }
-
     }
 }

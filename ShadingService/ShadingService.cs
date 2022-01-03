@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Numerics;
 using System.Text;
 
@@ -20,9 +21,11 @@ namespace MysteryProject
         private Vector3 phongLightVector;
 
         private Matrix4x4 phongNormalTransformation;
+
+        private ISpecularProvider specularProvider;
         
 
-        public bool SetShading((int, int, int) triangle, Vector3 lightVector, List<Vector3> vertices, List<Vector3> normalForVertices, Matrix4x4 normalTransformation)
+        public bool SetShading((int, int, int) triangle, Vector3 lightVector, List<Vector3> vertices, List<Vector3> normalForVertices, Matrix4x4 normalTransformation, ISpecularProvider specularProvider = null)
         {
             switch (Type)
             {
@@ -31,7 +34,7 @@ namespace MysteryProject
                 case ShadingType.Gouraud:
                     return SetGouraudShading(normalForVertices, triangle, lightVector, normalTransformation);
                 case ShadingType.Phong:
-                    return SetPhongShading(normalForVertices, triangle, lightVector, normalTransformation);
+                    return SetPhongShading(normalForVertices, triangle, lightVector, normalTransformation, specularProvider);
             }
             return true;
         }
@@ -62,14 +65,16 @@ namespace MysteryProject
             return this.gouruadIntensities.Item1 > 0 || this.gouruadIntensities.Item2 > 0 || this.gouruadIntensities.Item3 > 0;
         }
 
-        public bool SetPhongShading(List<Vector3> normalForVertices, (int, int, int) triangle, Vector3 lightVector, Matrix4x4 normalTransformation)
+        public bool SetPhongShading(List<Vector3> normalForVertices, (int, int, int) triangle, Vector3 lightVector, Matrix4x4 normalTransformation, ISpecularProvider specularProvider)
         {
             this.phongNormals = (normalForVertices[triangle.Item1], normalForVertices[triangle.Item2], normalForVertices[triangle.Item3]);
             this.phongLightVector = lightVector;
             this.phongNormalTransformation = normalTransformation;
+            this.specularProvider = specularProvider;
             return this.phongNormals.Item1 != Vector3.Zero || this.phongNormals.Item2 != Vector3.Zero || this.phongNormals.Item3 != Vector3.Zero;
         }
 
+        // specular bmp works only with phong since it decreases performance
         public float GetShading(Vector3 bayCoords, Vector3 point, out float spec)
         {
             spec = 0;
@@ -92,11 +97,10 @@ namespace MysteryProject
             var transformedNormal = Vector3.Normalize(Helpers.Vector4ToVector3(Vector4.Transform(Helpers.Vector3ToVector4(weightedNormal), this.phongNormalTransformation)));
 
             spec = 0;
-            if (this.SpecularBmp != null)
+            if (this.specularProvider != null)
             {
                 Vector3 reflected = Vector3.Normalize(transformedNormal * Vector3.Dot(transformedNormal, this.phongLightVector) * 2 - this.phongLightVector);
-
-                spec = (float)Math.Pow(Math.Max(0, reflected.Z), this.SpecularBmp.GetPixel(Convert.ToInt32(point.X), Convert.ToInt32(point.Y)).R);
+                spec = this.specularProvider.ResolveSpecular(reflected);
             }
 
             return Vector3.Dot(transformedNormal, this.phongLightVector);

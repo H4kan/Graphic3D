@@ -30,23 +30,11 @@ namespace MysteryProject
 
         public DirectBitmap Bmp { get; set; }
 
-        public DirectBitmap TxtBmp { get; set; }
-
         public DirectBitmap SpecularBmp { get; set; }
-
-        public double alpha { get; set; }
-
-        public List<Matrix<double>> vectors { get; set; }
-
-        public List<(int, int)> neighbourings { get; set; }
 
         public System.Threading.Timer timer { get; set; }
 
         public List<Vector3> originalVertices = new List<Vector3>();
-
-        public List<string> materialsTriangles = new List<string>();
-
-        public List<(string, DirectBitmap)> materialNames = new List<(string, DirectBitmap)>();
 
         public List<Vector3> vertices = new List<Vector3>();
 
@@ -54,27 +42,35 @@ namespace MysteryProject
 
         public List<(int, int, int)> triangles = new List<(int, int, int)>();
 
-        public List<Polygon> polygons = new List<Polygon>();
+        //public List<Vector2> textureVertices = new List<Vector2>();
 
-        public List<Vector2> textureVertices = new List<Vector2>();
+        //public List<(int, int, int)> textureIndexes = new List<(int, int, int)>();
 
-        public List<(int, int, int)> textureIndexes = new List<(int, int, int)>();
+        public Vector3 light = Vector3.Normalize(new Vector3(0, 0, 0.5f)); 
 
-        public Vector3 light = Vector3.Normalize(new Vector3(0, 0, 1));
+        public Vector3 camera = new Vector3(0, 0, 1.0f);
 
-        public Vector3 camera = new Vector3(0, 0, 5);
-
-        public Vector3 eye = new Vector3(0, 0, 1);
+        public Vector3 eye = new Vector3(1, 0, 1);
 
         public Vector3 center = new Vector3(0, 0, 0);
 
         public Matrix4x4 projection, viewport, viewmodel;
 
+        public ITextureProvider BowlingBallProvider { get; set; }
+
+        public ISpecularProvider BowlingBallSpecularProvider { get; set; }
+
+        public List<RenderSubject> Subjects { get; set; }
+
+        public bool globalChange = true;
+
+        public int frameCounter = 10;
+
+        public bool preventRendering = false;
+
         private void Form1_Load(object sender, EventArgs e)
         {
-            //this.timer = new System.Threading.Timer(this.Render, null, 0, 500);
-
-            this.Render(null);
+            this.timer = new System.Threading.Timer(this.Render, null, 0, 1000 / frameCounter);
 
         }
 
@@ -87,26 +83,6 @@ namespace MysteryProject
             this.pictureBox.Width = 900;
             this.pictureBox.Height = 900;
             this.Bmp = new DirectBitmap(this.pictureBox.Width, this.pictureBox.Height);
-
-            using (var txtBmpHandler = Image.FromFile("../../../marble.png"))
-            {
-                this.TxtBmp = new DirectBitmap(txtBmpHandler.Height, txtBmpHandler.Width);
-                using (var graphics = Graphics.FromImage(this.TxtBmp.Bitmap))
-                {
-                    graphics.DrawImage(txtBmpHandler, 0, 0);
-                }
-            }
-            this.SpecularBmp = null;
-            //using (var txtBmpHandler = Image.FromFile("../../../african_head_spec.jpg"))
-            //{
-            //    this.SpecularBmp = new DirectBitmap(txtBmpHandler.Width, txtBmpHandler.Height);
-            //    using (var graphics = Graphics.FromImage(this.SpecularBmp.Bitmap))
-            //    {
-            //        graphics.DrawImage(txtBmpHandler, 0, 0);
-            //    }
-            //}
-
-
             this.pictureBox.Image = this.Bmp.Bitmap;
 
             this.BresenhamLine = new BresenhamLine(this.Bmp);
@@ -118,54 +94,145 @@ namespace MysteryProject
             this.ShadingService.Type = ShadingType.Constant;
             this.ShadingService.SpecularBmp = this.SpecularBmp;
 
-            string[] materials = File.ReadAllLines("../../../material.lib");
-            int r = 0;
-            while (r < materials.Length)
-            {
-                if (materials[r].StartsWith("newmtl"))
-                {
-                    var values = materials[r].Split(" ");
-
-                    while (r < materials.Length && !materials[r].StartsWith("\tmap_Kd"))
-                    {
-                        r++;
-                    }
-                    if (r == materials.Length) break;
-                    var values2 = materials[r].Split(" ");
-                    using (var txtBmpHandler = Image.FromFile($"../../../textures/{values2[1]}"))
-                    {
-                        var bmp = new DirectBitmap(txtBmpHandler.Width, txtBmpHandler.Height);
-                        using (var graphics = Graphics.FromImage(bmp.Bitmap))
-                        {
-                            graphics.DrawImage(txtBmpHandler, 0, 0);
-                        }
-                        //for (int i = 0; i < bmp.Height / 2; i++)
-                        //{
-                        //    for (int j = 0; j < bmp.Width; j++)
-                        //    {
-                        //        var bit = bmp.Bits[bmp.Height * i + j];
-                        //        bmp.Bits[bmp.Height * i + j] = bmp.Bits[(bmp.Width - 1 - i) * bmp.Height + j];
-                        //        bmp.Bits[(bmp.Width - 1 - i) * bmp.Height + j] = bit;
-                        //    }
-                        //}
-                        materialNames.Add((values[1], bmp));
-                    }
-          
-                }
-                r++;
-            }
-
-            string[] data = File.ReadAllLines("../../../gurl6.obj");
-
-            int size = 350;
-            int posX = 450;
-            int posY = 0;
+            this.BowlingBallProvider = new BowlingPinProvider();
+            this.BowlingBallSpecularProvider = new BowlingBallSpecularProvider();
 
             this.projection = this.MatrixProvider.ProjectionMatrix(camera);
-            this.viewport = this.MatrixProvider.ViewportnMatrix(posX, posY, size);
             this.viewmodel = this.MatrixProvider.ViewModelMatrix(eye, center, new Vector3(0, 1, 0));
-            string selectedFileName = "";
-        
+
+            this.Subjects = new List<RenderSubject>();
+
+            var pinPath = "../../../pin.obj";
+            ReadVertices(pinPath);
+            for (int i = 0; i < 3; i++)
+            {
+                var pin = new RenderSubject();
+                pin.size = 800;
+                pin.posY = 400;
+                pin.posX = 500 - i * 50;
+
+                pin.angle = 0.5f;
+                pin.diffAngle = 0;
+                pin.translationPosition = new Vector3(0, 0, -0.5f);
+                pin.diffPosition = new Vector3(0, 0, 0);
+                pin.needRecalculation = false;
+                pin.RefreshMatrices(MatrixProvider);
+
+                pin.textureProvider = new BowlingPinProvider();
+                pin.specularProvider = new BowlingBallSpecularProvider();
+
+                pin.originalVertices.AddRange(this.originalVertices);
+                pin.triangles.AddRange(this.triangles);
+                pin.normals.AddRange(this.normalForVertices);
+
+                pin.InitMatrices(MatrixProvider);
+                this.Subjects.Add(pin);
+            }
+
+            var ballPath = "../../../BowlingBall2.obj";
+            this.originalVertices.Clear();
+            this.triangles.Clear();
+            this.normalForVertices.Clear();
+            ReadVertices(ballPath);
+
+            var ball = new RenderSubject();
+            ball.size = 800;
+            ball.posX = 450;
+            ball.posY = 450;
+
+            ball.baseAngle = 0;
+            ball.angle = 0;
+            ball.diffAngle = 0.5f;
+            ball.baseTranslationPosition = new Vector3(0, 0, 0.75f);
+            ball.translationPosition = new Vector3(0, 0, 0.75f);
+            ball.diffPosition = new Vector3(0, 0, -0.05f);
+
+            ball.frameRestart = 50;
+            ball.needRecalculation = true;
+            ball.specularProvider = new BowlingBallSpecularProvider();
+            ball.textureProvider = new BowlingBallProvider();
+
+            ball.originalVertices.AddRange(this.originalVertices);
+            ball.triangles.AddRange(this.triangles);
+            ball.normals.AddRange(this.normalForVertices);
+
+            ball.InitMatrices(MatrixProvider);
+            this.Subjects.Add(ball);
+
+
+
+            this.viewmodel = this.MatrixProvider.ViewModelMatrix(eye, center, new Vector3(0, 1, 0));
+        }
+
+        public void Render(object state)
+        {
+            if (this.preventRendering) return;
+            this.preventRendering = true;
+            this.pictureBox.Invoke((MethodInvoker)delegate {
+                for (int i = 0; i < this.Bmp.Bits.Length; i++)
+                    this.Bmp.Bits[i] = Color.Black.ToArgb();
+
+                float[,] zMax = new float[this.Bmp.Width, this.Bmp.Height];
+                for (int i = 0; i < this.Bmp.Width; i++)
+                    for (int j = 0; j < this.Bmp.Height; j++)
+                    {
+                        zMax[i, j] = float.NegativeInfinity;
+                    }
+
+                foreach (var subject in this.Subjects)
+                {
+                    if (subject.needRecalculation || globalChange)
+                    {
+                        subject.RefreshMatrices(this.MatrixProvider);
+                        var transformation = subject.RotationX * subject.Translation * this.viewmodel * this.projection * subject.Viewport;
+                        subject.vertices.Clear();
+                        for (int i = 0; i < subject.originalVertices.Count; i++)
+                        {
+
+                            var screenVertice = Helpers.Vector4ToVector3(Vector4.Transform(Helpers.Vector3ToVector4(subject.originalVertices[i]), transformation));
+                            subject.vertices.Add(screenVertice);
+                        }
+                    }
+                    if (globalChange)
+                    {
+                        Matrix4x4.Invert(Matrix4x4.Transpose(this.viewmodel * this.projection), out subject.NormalTransformation);
+                    }
+
+                    for (int j = 0; j < subject.triangles.Count; j++)
+                    {
+                        var pt1 = subject.vertices[subject.triangles[j].Item1];
+                        var pt2 = subject.vertices[subject.triangles[j].Item2];
+                        var pt3 = subject.vertices[subject.triangles[j].Item3];
+
+                        var poly = new Polygon();
+
+                        poly.Points.Add(pt1);
+                        poly.Points.Add(pt2);
+                        poly.Points.Add(pt3);
+
+                        var shouldRender = this.ShadingService.SetShading(subject.triangles[j],
+                            light,
+                            subject.vertices, subject.normals, subject.NormalTransformation,
+                            subject.specularProvider);
+
+                        if (shouldRender)
+                        {
+                            var colorResolver = new ColorResolver(
+                                this.ShadingService, subject.textureProvider);
+                            this.FillingService.RunFilling(poly.Points, zMax, colorResolver);
+                        }
+
+                    }
+                }
+                this.globalChange = false;
+                this.pictureBox.Invalidate();
+                this.preventRendering = false;
+            });
+        }
+
+        public void ReadVertices(string path)
+        {
+            string[] data = File.ReadAllLines(path);
             for (int i = 0; i < data.Length; i++)
             {
                 if (data[i].Length < 2) continue;
@@ -185,125 +252,34 @@ namespace MysteryProject
                 if (data[i][0] == 'f')
                 {
                     triangles.Add((Int32.Parse((values[1].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[0], CultureInfo.InvariantCulture.NumberFormat) - 1));
-                    textureIndexes.Add((Int32.Parse((values[1].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1));
-                    materialsTriangles.Add(selectedFileName);
+                    //if ((values[1].Split("/"))[1].Length > 0)
+                    //{
+                    //    textureIndexes.Add((Int32.Parse((values[1].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[1], CultureInfo.InvariantCulture.NumberFormat) - 1));
+                    //}
+                    //else
+                    //{
+                    //    textureIndexes.Add((Int32.Parse((values[1].Split("/"))[2], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[2].Split("/"))[2], CultureInfo.InvariantCulture.NumberFormat) - 1, Int32.Parse((values[3].Split("/"))[2], CultureInfo.InvariantCulture.NumberFormat) - 1));
+                    //}
                 }
-                if (data[i][0] == 'v' && data[i][1] == 't')
-                {
-                    if (values.Length == 3)
-                        textureVertices.Add(new Vector2(float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat), float.Parse(values[1], CultureInfo.InvariantCulture.NumberFormat)));
-                    else
-                        textureVertices.Add(new Vector2(float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat), float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat)));
-                }
+                //if (data[i][0] == 'v' && data[i][1] == 't')
+                //{
+                //    if (values.Length == 3)
+                //        textureVertices.Add(new Vector2(float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat), float.Parse(values[1], CultureInfo.InvariantCulture.NumberFormat)));
+                //    else
+                //        textureVertices.Add(new Vector2(float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat), float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat)));
+                //}
                 if (data[i][0] == 'v' && data[i][1] == 'n')
                 {
-                    //if (values.Length == 4)
-                    //    normalForVertices.Add(new Vector3(float.Parse(values[1], CultureInfo.InvariantCulture.NumberFormat),
-                    //    float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat),
-                    //    float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat)));
-                    //else
-                    //    normalForVertices.Add(new Vector3(float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat),
-                    //        float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat),
-                    //        float.Parse(values[4], CultureInfo.InvariantCulture.NumberFormat)));
-                }
-                if (data[i].StartsWith("usemtl"))
-                {
-                    var material = materialNames.FirstOrDefault(m => m.Item1 == values[1]);
-                    if (material != default((string, DirectBitmap)))
-                    {
-                        selectedFileName = material.Item1;
-                    }
-                    else selectedFileName = "";
+                    if (values.Length == 4)
+                        normalForVertices.Add(new Vector3(float.Parse(values[1], CultureInfo.InvariantCulture.NumberFormat),
+                        float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat),
+                        float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat)));
+                    else
+                        normalForVertices.Add(new Vector3(float.Parse(values[2], CultureInfo.InvariantCulture.NumberFormat),
+                            float.Parse(values[3], CultureInfo.InvariantCulture.NumberFormat),
+                            float.Parse(values[4], CultureInfo.InvariantCulture.NumberFormat)));
                 }
             }
-            this.viewmodel = this.MatrixProvider.ViewModelMatrix(eye, center, new Vector3(0, 1, 0));
-
-          
-            //this.pictureBox.Invalidate();
-        }
-
-        public void Render(object state)
-        {
-
-            this.pictureBox.Invoke((MethodInvoker)delegate {
-                for (int i = 0; i < this.Bmp.Bits.Length; i++)
-                    this.Bmp.Bits[i] = Color.Black.ToArgb();
-                this.eye.Y += 0.5f;
-                this.viewmodel = this.MatrixProvider.ViewModelMatrix(eye, center, new Vector3(0, 1, 0));
-
-                var transformation = this.viewmodel * this.projection * this.viewport;
-                vertices.Clear();
-                for (int i = 0; i < originalVertices.Count; i++)
-                {
-                    var screenVertice = Helpers.Vector4ToVector3(Vector4.Transform(Helpers.Vector3ToVector4(originalVertices[i]), transformation));
-                    vertices.Add(screenVertice);
-                }
-                Matrix4x4.Invert(Matrix4x4.Transpose(this.viewmodel * this.projection), out var normalTransformation);
-                //for (int i = 0; i < triangles.Count; i++)
-                //{
-                //    Vector3 sum = new Vector3(0, 0, 0);
-                //    var neighbours = Helpers.findNeighbours(triangles, triangles[i]);
-                //    foreach (var triangle in neighbours)
-                //    {
-
-                //        Vector3 v1 = new Vector3(vertices[triangle.Item2].X - vertices[triangle.Item1].X,
-                //               vertices[triangle.Item2].Y - vertices[triangle.Item1].Y,
-                //               vertices[triangle.Item2].Z - vertices[triangle.Item1].Z);
-                //        Vector3 v2 = new Vector3(vertices[triangle.Item3].X - vertices[triangle.Item1].X,
-                //            vertices[triangle.Item3].Y - vertices[triangle.Item1].Y,
-                //            vertices[triangle.Item3].Z - vertices[triangle.Item1].Z);
-
-                //        sum  += Vector3.Normalize(Helpers.Vector4ToVector3(Vector4.Transform(Helpers.Vector3ToVector4(Vector3.Cross(v2, v1)), normalTransformation)));
-                //    }
-                //    normalForVertices.Add(sum / 3);
-                //}
-
-
-
-                float[,] zMax = new float[this.Bmp.Width, this.Bmp.Height];
-                for (int i = 0; i < this.Bmp.Width; i++)
-                    for (int j = 0; j < this.Bmp.Height; j++)
-                    {
-                        zMax[i, j] = float.NegativeInfinity;
-                    }
-                for (int j = 0; j < triangles.Count; j++)
-                {
-                    if (materialsTriangles[j].Length > 0)
-                    {
-                        this.TxtBmp = materialNames.First(m => m.Item1 == materialsTriangles[j]).Item2;
-                    }
-                    var pt1 = vertices[triangles[j].Item1];
-                    var pt2 = vertices[triangles[j].Item2];
-                    var pt3 = vertices[triangles[j].Item3];
-
-                    var poly = new Polygon();
-                    poly.Edges.Add(new Line(pt1, pt2));
-                    poly.Edges.Add(new Line(pt2, pt3));
-                    poly.Edges.Add(new Line(pt3, pt1));
-
-                    poly.Points.Add(pt1);
-                    poly.Points.Add(pt2);
-                    poly.Points.Add(pt3);
-
-                    var shouldRender = this.ShadingService.SetShading(triangles[j],
-                        light,
-                        vertices, normalForVertices, normalTransformation);
-
-                    if (shouldRender)
-                    {
-                        var colorResolver = new ColorResolver(poly, this.TxtBmp,
-                            (
-                            textureVertices[textureIndexes[j].Item1],
-                            textureVertices[textureIndexes[j].Item2],
-                            textureVertices[textureIndexes[j].Item3]
-                            ), this.ShadingService);
-                        this.FillingService.RunFilling(poly.Points, zMax, colorResolver);
-
-                    }
-
-                }
-                this.pictureBox.Invalidate();
-            });
         }
     }
 }

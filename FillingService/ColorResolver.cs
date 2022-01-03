@@ -8,25 +8,24 @@ namespace MysteryProject
 {
     public class ColorResolver
     {
-        (Vector2, Vector2, Vector2) colorsInVertices { get; set; }
-
-        DirectBitmap txtBmp { get; set; }
-
         ShadingService ShadingService { get; set; }
+
+        ITextureProvider TextureProvider { get; set; }
         
-        public ColorResolver(Polygon triangle, DirectBitmap txtBmp, (Vector2, Vector2, Vector2) colorsInVecrtices, ShadingService shadingService)
+        public ColorResolver(ShadingService shadingService, ITextureProvider textureProvider)
         {
-            this.colorsInVertices = colorsInVecrtices;
-            this.txtBmp = txtBmp;
             this.ShadingService = shadingService;
+            this.TextureProvider = textureProvider;
         }
 
         public Color ResolveColor(Vector3 weights, Vector3 point)
         {
 
-            var coords = weights.X * colorsInVertices.Item1 + weights.Y * colorsInVertices.Item2 + weights.Z * colorsInVertices.Item3;
+            //var coords = weights.X * colorsInVertices.Item1 + weights.Y * colorsInVertices.Item2 + weights.Z * colorsInVertices.Item3;
 
-            var color = this.txtBmp.GetPixel(Math.Max(0, Math.Min(Convert.ToInt32(coords.X * this.txtBmp.Width), this.txtBmp.Height - 1)), Math.Max(0, Math.Min(Convert.ToInt32(coords.Y * this.txtBmp.Height), this.txtBmp.Width - 1)));
+            //var color = this.txtBmp.GetPixel(Math.Max(0, Math.Min(Convert.ToInt32(coords.X * this.txtBmp.Width), this.txtBmp.Height - 1)), Math.Max(0, Math.Min(Convert.ToInt32(coords.Y * this.txtBmp.Height), this.txtBmp.Width - 1)));
+
+            var color = TextureProvider.ResolveColor(point);
 
             var intensity = Math.Min(1, Math.Max(0, this.ShadingService.GetShading(weights, point, out float spec)));
 

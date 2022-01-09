@@ -27,13 +27,13 @@ namespace MysteryProject
 
             var color = TextureProvider.ResolveColor(point);
 
-            var intensity = Math.Min(1, Math.Max(0, this.ShadingService.GetShading(weights, point, out float spec)));
+            var intensity = Math.Max(0, this.ShadingService.GetShading(weights, point, out bool spec));
 
-            if (spec > 0)
+            if (spec)
             {
-                var r = Convert.ToInt32(Math.Min(5 + color.R * (intensity + 1.3 * spec), 255));
-                var g = Convert.ToInt32(Math.Min(5 + color.G * (intensity + 1.3 * spec), 255));
-                var b = Convert.ToInt32(Math.Min(5 + color.B * (intensity + 1.3 * spec), 255));
+                var r = Convert.ToInt32(Math.Min(5 + color.R * intensity, 255));
+                var g = Convert.ToInt32(Math.Min(5 + color.G * intensity, 255));
+                var b = Convert.ToInt32(Math.Min(5 + color.B * intensity, 255));
 
 
                 return Color.FromArgb(r, g, b);

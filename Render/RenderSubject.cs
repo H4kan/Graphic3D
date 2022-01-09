@@ -26,14 +26,13 @@ namespace MysteryProject
         public Matrix4x4 RotationX;
         public Matrix4x4 Translation;
 
+        public Matrix4x4 NormalAdjusting;
         public Matrix4x4 NormalTransformation;
 
         public List<(int, int, int)> triangles = new List<(int, int, int)>();
         public List<Vector3> vertices = new List<Vector3>();
         public List<Vector3> normals = new List<Vector3>();
         public List<Vector3> originalVertices = new List<Vector3>();
-
-        public bool needRecalculation;
 
         public ITextureProvider textureProvider;
         public ISpecularProvider specularProvider;
@@ -55,7 +54,7 @@ namespace MysteryProject
                 this.translationPosition = baseTranslationPosition;
             }
 
-            this.RotationX = matrixProvider.RotationMatrixY(angle);
+            this.RotationX = matrixProvider.RotationMatrixX(-angle);
             this.Translation = matrixProvider.TranslationMatrix(translationPosition);
         }
     }

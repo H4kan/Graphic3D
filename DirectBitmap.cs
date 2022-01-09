@@ -32,8 +32,8 @@ namespace MysteryProject
 
         public void SetPixel(int x, int y, Color colour)
         {
-            int transformedX = y;
-            int transformedY = this.Bitmap.Height - 1 - x;
+            int transformedX = x;
+            int transformedY = this.Bitmap.Height - 1 - y;
 
             int index = transformedX + (transformedY * Width);
             int col = colour.ToArgb();

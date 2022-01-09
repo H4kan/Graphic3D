@@ -32,7 +32,7 @@ namespace MysteryProject
             }
             edgeTable = edgeTable.OrderBy(e => e.yMin).ToList();
 
-            return edgeTable;
+            return edgeTable; 
         }
 
 
@@ -70,8 +70,6 @@ namespace MysteryProject
                     }
 
                 }
-
-            //Vector3 bcCoords = GetBaycentricCoords(triangle, )
         }
     }
 }

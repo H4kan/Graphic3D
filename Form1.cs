@@ -42,19 +42,6 @@ namespace MysteryProject
 
         public List<(int, int, int)> triangles = new List<(int, int, int)>();
 
-        //public List<Vector2> textureVertices = new List<Vector2>();
-
-        //public List<(int, int, int)> textureIndexes = new List<(int, int, int)>();
-
-        //public Vector3 light = Vector3.Normalize(new Vector3(1, 1, 0.5f)); 
-
-        // Static behind
-        //public Vector3 camera = new Vector3(0.0f, 0.0f, 1.0f);
-
-        //public Vector3 eye = new Vector3(0.0f, -1.0f, -1.0f);
-
-        //public Vector3 center = new Vector3(0.0f, 0, 0);
-
         public Vector3 camera = new Vector3(0.0f, 0.0f, 1.0f);
 
         public Vector3 eye = new Vector3(0.0f, 1.0f, -1.0f);
@@ -71,13 +58,11 @@ namespace MysteryProject
 
         public List<List<int>> verticeInTriangles = new List<List<int>>();
 
-        public int frameCounter = 10;
+        public int frameCounter = 20;
 
         public bool preventRendering = false;
 
         public List<Vector3> LightVectors = new List<Vector3>();
-
-        public int counter = 0;
 
         public List<CameraSubject> cameras = new List<CameraSubject>();
 
@@ -89,7 +74,6 @@ namespace MysteryProject
         {
             InitializeComponent();
 
-            //this.Width = 1000;
             this.Height = 1000;
             this.pictureBox.Width = 900;
             this.pictureBox.Height = 900;
@@ -103,8 +87,7 @@ namespace MysteryProject
             this.MatrixProvider = new MatrixProvider();
 
             this.ShadingService.Type = ShadingType.Phong;
-            this.ShadingService.SpecularBmp = this.SpecularBmp;
-
+            
             this.BowlingBallProvider = new BowlingPinProvider();
             this.BowlingBallSpecularProvider = new BowlingBallSpecularProvider();
 
@@ -113,9 +96,6 @@ namespace MysteryProject
             this.model = this.MatrixProvider.ModelMatrix(eye, center, new Vector3(0, 1, 0));
 
             this.Subjects = new List<RenderSubject>();
-
-            //this.LightVectors.Add(new Vector3(0.0f, 1, 0));
-            this.LightVectors.Add(new Vector3(0.0f, 1.0f, -1.0f));
 
             var pinPath = "../../../pin.obj";
             var ballPath = "../../../BowlingBall2.obj";
@@ -146,7 +126,7 @@ namespace MysteryProject
                 pin.NormalAdjusting = Matrix4x4.Identity;
                 pin.NormalAdjusting.M11 = -1;
                 pin.NormalAdjusting.M22 = -1;
-                pin.NormalAdjusting.M33 = 1;
+                pin.NormalAdjusting.M33 = -1;
                 pin.InitMatrices(MatrixProvider);
                 this.Subjects.Add(pin);
             }
@@ -178,13 +158,16 @@ namespace MysteryProject
             ball.triangles.AddRange(this.triangles);           
             ball.normals.AddRange(this.normalForVertices);
             ball.NormalAdjusting = Matrix4x4.Identity;
-            //ball.normals = ball.normals.Select(v => new Vector3(v.X, v.Y, v.Z)).ToList();
+
+            ball.NormalAdjusting.M11 = 1;
+            ball.NormalAdjusting.M22 = 1;
+            ball.NormalAdjusting.M33 = -1;
             
             ball.InitMatrices(MatrixProvider);
             this.Subjects.Add(ball);
 
             var constCam = new CameraSubject(this, CameraType.Constant);
-            constCam.SetConstCamera(new Vector3(0, 0, 0));
+            constCam.SetConstCamera(new Vector3(0, 0, 0.2f));
             this.cameras.Add(constCam);
 
             var lookingCam = new CameraSubject(this, CameraType.Looking);
@@ -198,11 +181,22 @@ namespace MysteryProject
             this.selectedCamera = constCam;
 
 
-
+            this.InitLights();
 
             this.view = this.MatrixProvider.ViewMatrix(eye, center, new Vector3(0, 1, 0));
             this.model = this.MatrixProvider.ModelMatrix(eye, center, new Vector3(0, 1, 0));
           }
+
+        public void InitLights()
+        {
+            this.LightVectors.Add(new Vector3(1.0f, 1.0f, 1.0f));
+        }
+
+        public void RefeshLights()
+        {
+            this.LightVectors = this.LightVectors.Select(l => Helpers.Vector4ToVector3(Vector4.Transform(Helpers.Vector3ToVector4(Vector3.Normalize(l)), this.view * this.model))).ToList();
+            this.LightVectors[0] = new Vector3(this.LightVectors[0].X, this.LightVectors[0].Y + 0.05f, this.LightVectors[0].Z);
+        }
 
         public void Render(object state)
         {
@@ -212,8 +206,7 @@ namespace MysteryProject
                 for (int i = 0; i < this.Bmp.Bits.Length; i++)
                     this.Bmp.Bits[i] = Color.Black.ToArgb();
 
-                var transformedLights = this.LightVectors.Select(
-                    l => Vector3.Normalize(new Vector3(l.X, l.Y, -l.Z))).ToList();
+                this.RefeshLights();
 
                 if (awaitingCamera != null)
                 {
@@ -229,9 +222,6 @@ namespace MysteryProject
                 this.selectedCamera.Refresh();
                 this.view = MatrixProvider.ViewMatrix(eye, center, new Vector3(0, 1, 0));
                 this.model = MatrixProvider.ModelMatrix(eye, center, new Vector3(0, 1, 0));
-                
-                //Matrix4x4.Invert(MatrixProvider.RotationMatrixY((float)(followingAngle)) * MatrixProvider.TranslationMatrix(new Vector3(1.0f, 1, 0.0f)) * this.view * this.model, out var projTransform);
-
 
                 foreach (var subject in this.Subjects)
                 {
@@ -244,7 +234,7 @@ namespace MysteryProject
                         subject.vertices.Add(screenVertice);
                     }
                     Matrix4x4.Invert(Matrix4x4.Transpose(
-                        subject.RotationX * this.view * this.model),
+                        subject.RotationX * this.view * this.model * this.selectedCamera.projectionTransformation * this.projection),
                         out subject.NormalTransformation);
                     subject.NormalTransformation *= subject.NormalAdjusting;
                     float[,] zMax = new float[this.Bmp.Width, this.Bmp.Height];
@@ -266,7 +256,7 @@ namespace MysteryProject
                         poly.Points.Add(pt3);
 
                         var shouldRender = this.ShadingService.SetShading(subject.triangles[j],
-                            transformedLights,
+                            this.LightVectors,
                             subject.originalVertices, subject.normals, subject.NormalTransformation,
                             subject.specularProvider);
 

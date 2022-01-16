@@ -112,6 +112,8 @@ namespace MysteryProject
                     Vector3 reflected = Vector3.Normalize(transformedNormal * Vector3.Dot(transformedNormal, this.phongLightVectors[i]) * 2 - this.phongLightVectors[i]);
                     float specularValue = this.specularProvider.ResolveSpecular(reflected);
                     intensity += Math.Max(0, Vector3.Dot(transformedNormal, this.phongLightVectors[i])) + 1.3f * specularValue;
+                    if (float.IsNaN(intensity))
+                        intensity = float.MaxValue;
                 }
             }
             else

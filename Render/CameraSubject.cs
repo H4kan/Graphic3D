@@ -69,9 +69,9 @@ namespace MysteryProject
                     var diffVec =  this.translPosition - this.renderSubject.translationPosition;
                     var followingAngle = Math.PI / 2 - Math.Acos(1 / diffVec.Length());
 
-                    Matrix4x4.Invert(
-                        this.form.MatrixProvider.RotationMatrixY((float)(followingAngle)) * 
-                        this.translProjection, out var invertedLookMat);
+                    Matrix4x4.Invert(this.translProjection *
+                        this.form.MatrixProvider.RotationMatrixY((float)(followingAngle))
+                        , out var invertedLookMat);
                     this.projectionTransformation = invertedLookMat;
                     break;
                 case CameraType.Constant:

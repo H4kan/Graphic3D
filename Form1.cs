@@ -26,6 +26,8 @@ namespace MysteryProject
 
         public ShadingService ShadingService { get; set; }
 
+        public LightService LightService { get; set; }
+
         public MatrixProvider MatrixProvider { get; set; }
 
         public DirectBitmap Bmp { get; set; }
@@ -62,9 +64,9 @@ namespace MysteryProject
 
         public bool preventRendering = false;
 
-        public List<Vector3> LightVectors = new List<Vector3>();
-
         public List<CameraSubject> cameras = new List<CameraSubject>();
+
+        public FogResolver fogResolver;
 
         public CameraSubject selectedCamera { get; set; }
 
@@ -85,6 +87,10 @@ namespace MysteryProject
             this.FillingService = new FillingService(this.LineService, this.Bmp);
             this.ShadingService = new ShadingService();
             this.MatrixProvider = new MatrixProvider();
+            this.LightService = new LightService(this);
+            this.fogResolver = new FogResolver(
+                Color.FromArgb(255, 255, 255),
+                100.0f);
 
             this.ShadingService.Type = ShadingType.Phong;
             
@@ -110,7 +116,7 @@ namespace MysteryProject
 
                 pin.baseAngle = 0;
                 pin.diffAngle = 0;
-                pin.baseTranslationPosition = new Vector3(0.37f - i * 0.3f, 0, 2.5f);
+                pin.baseTranslationPosition = new Vector3(0.37f - i * 0.3f, 0, 3.5f);
                 pin.translationPosition = pin.baseTranslationPosition;
                 //pin.diffPosition = new Vector3(0.05f, 0, 0);
                 pin.frameRestart = 60;
@@ -124,9 +130,9 @@ namespace MysteryProject
                 pin.normals.AddRange(this.normalForVertices);
                 //pin.normals = pin.normals.Select(v => new Vector3(-v.X, -v.Y, -v.Z)).ToList();
                 pin.NormalAdjusting = Matrix4x4.Identity;
-                pin.NormalAdjusting.M11 = -1;
-                pin.NormalAdjusting.M22 = -1;
-                pin.NormalAdjusting.M33 = -1;
+                pin.NormalAdjusting.M11 = 1;
+                pin.NormalAdjusting.M22 = 1;
+                pin.NormalAdjusting.M33 = 1;
                 pin.InitMatrices(MatrixProvider);
                 this.Subjects.Add(pin);
             }
@@ -160,7 +166,7 @@ namespace MysteryProject
             ball.NormalAdjusting = Matrix4x4.Identity;
 
             ball.NormalAdjusting.M11 = 1;
-            ball.NormalAdjusting.M22 = 1;
+            ball.NormalAdjusting.M22 = -1;
             ball.NormalAdjusting.M33 = -1;
             
             ball.InitMatrices(MatrixProvider);
@@ -180,7 +186,6 @@ namespace MysteryProject
 
             this.selectedCamera = constCam;
 
-
             this.InitLights();
 
             this.view = this.MatrixProvider.ViewMatrix(eye, center, new Vector3(0, 1, 0));
@@ -189,13 +194,13 @@ namespace MysteryProject
 
         public void InitLights()
         {
-            this.LightVectors.Add(new Vector3(1.0f, 1.0f, 1.0f));
-        }
-
-        public void RefeshLights()
-        {
-            this.LightVectors = this.LightVectors.Select(l => Helpers.Vector4ToVector3(Vector4.Transform(Helpers.Vector3ToVector4(Vector3.Normalize(l)), this.view * this.model))).ToList();
-            this.LightVectors[0] = new Vector3(this.LightVectors[0].X, this.LightVectors[0].Y + 0.05f, this.LightVectors[0].Z);
+            var constLight1 = new LightSubject(new Vector3(-1.0f, 1.0f, 0.0f));
+            this.LightService.AddLight(constLight1);
+            var constLight2 = new LightSubject(new Vector3(1.0f, 1.0f, 0.0f));
+            this.LightService.AddLight(constLight2);
+            var followingLight1 = new FollowingLightSubject(
+                new Vector3(1, -1, 0), this.Subjects[3]);
+            this.LightService.AddLight(followingLight1);
         }
 
         public void Render(object state)
@@ -204,10 +209,8 @@ namespace MysteryProject
             this.preventRendering = true;
             this.pictureBox.Invoke((MethodInvoker)delegate {
                 for (int i = 0; i < this.Bmp.Bits.Length; i++)
-                    this.Bmp.Bits[i] = Color.Black.ToArgb();
-
-                this.RefeshLights();
-
+                    this.Bmp.Bits[i] = Color.FromArgb(0, 0, 0).ToArgb();
+                
                 if (awaitingCamera != null)
                 {
                     this.selectedCamera = awaitingCamera;
@@ -223,6 +226,12 @@ namespace MysteryProject
                 this.view = MatrixProvider.ViewMatrix(eye, center, new Vector3(0, 1, 0));
                 this.model = MatrixProvider.ModelMatrix(eye, center, new Vector3(0, 1, 0));
 
+                Matrix4x4.Invert(
+                    this.selectedCamera.projectionTransformation * this.projection,
+                    out this.LightService.invertCameraPosition);
+                this.LightService.UpdateLights();
+
+                var lights = this.LightService.ResolveLightVectors();
                 foreach (var subject in this.Subjects)
                 {
                     var transformation = subject.RotationX * subject.Translation * this.view 
@@ -256,14 +265,14 @@ namespace MysteryProject
                         poly.Points.Add(pt3);
 
                         var shouldRender = this.ShadingService.SetShading(subject.triangles[j],
-                            this.LightVectors,
+                            lights,
                             subject.originalVertices, subject.normals, subject.NormalTransformation,
                             subject.specularProvider);
 
                         if (shouldRender)
                         {
                             var colorResolver = new ColorResolver(
-                                this.ShadingService, subject.textureProvider);
+                                this.ShadingService, subject.textureProvider, this.fogResolver);
                             this.FillingService.RunFilling(poly.Points, zMax, colorResolver);
                         }
 
